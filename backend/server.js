@@ -61,6 +61,14 @@ app.use(
 );
 
 // --- Routes ---
+app.get("/", (req, res) => {
+  res.json({
+    success: true,
+    status: "ok",
+    message: "PrintBridge API is running successfully."
+  });
+});
+
 app.use("/api", routes);
 
 // --- Sockets ---
