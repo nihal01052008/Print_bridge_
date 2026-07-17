@@ -28,6 +28,7 @@ const allowedOrigins = [
   "http://localhost:5174",
   "http://localhost:5173",
   "https://print-bridge.vercel.app",
+  "https://print-bridge-git-main-nihal01052008s-projects.vercel.app"
 ];
 
 if (process.env.FRONTEND_URL) {
