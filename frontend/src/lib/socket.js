@@ -2,7 +2,7 @@ import { io } from "socket.io-client";
 
 let socket;
 
-const SOCKET_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "/" : "https://print-bridge-dx0h.onrender.com");
+const SOCKET_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "/" : "https://print-bridge-cfoo.onrender.com");
 
 export function getSocket() {
   if (!socket) {
