@@ -42,10 +42,25 @@ export default function CustomerUpload() {
     if (!shopSlug) {
       setShop(null);
       return;
-      }
+    }
+
+    let cleanSlug = shopSlug.trim();
+    if (cleanSlug.endsWith("/")) {
+      cleanSlug = cleanSlug.slice(0, -1);
+    }
+    if (cleanSlug.includes("/")) {
+      cleanSlug = cleanSlug.split("/")[0];
+    }
+    if (cleanSlug.includes("?")) {
+      cleanSlug = cleanSlug.split("?")[0];
+    }
+    if (cleanSlug.includes("#")) {
+      cleanSlug = cleanSlug.split("#")[0];
+    }
+
     setShopError(null);
     api
-      .get(`/shops/${shopSlug}`)
+      .get(`/shops/${cleanSlug}`)
       .then((res) => {
         const s = res.data.shop;
         if (!s.isActive || !s.isAcceptingOrders) {
@@ -102,14 +117,33 @@ export default function CustomerUpload() {
       const url = new URL(decodedText);
       const pathParts = url.pathname.split("/upload/");
       if (pathParts.length > 1) {
-        const slug = pathParts[1];
+        let slug = pathParts[1];
+        // Clean trailing slash
+        if (slug.endsWith("/")) {
+          slug = slug.slice(0, -1);
+        }
+        // Extract only the first segment if there are multiple sub-paths
+        if (slug.includes("/")) {
+          slug = slug.split("/")[0];
+        }
+        // Remove any query params or hash
+        if (slug.includes("?")) {
+          slug = slug.split("?")[0];
+        }
+        if (slug.includes("#")) {
+          slug = slug.split("#")[0];
+        }
         navigate(`/upload/${slug}`);
       } else {
         alert("Invalid QR Code. Please scan a PrintBridge shop counter QR code.");
       }
     } catch (e) {
-      if (decodedText && decodedText.trim() && !decodedText.includes("/")) {
-        navigate(`/upload/${decodedText.trim()}`);
+      let cleanedText = decodedText ? decodedText.trim() : "";
+      if (cleanedText.endsWith("/")) {
+        cleanedText = cleanedText.slice(0, -1);
+      }
+      if (cleanedText && !cleanedText.includes("/")) {
+        navigate(`/upload/${cleanedText}`);
       } else {
         alert("Invalid QR Code content.");
       }

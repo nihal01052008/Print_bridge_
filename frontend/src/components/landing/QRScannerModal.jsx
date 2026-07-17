@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Camera, AlertCircle, Upload, Image } from "lucide-react";
+import { X, Camera, AlertCircle, Upload, RefreshCw } from "lucide-react";
 import { Html5Qrcode } from "html5-qrcode";
 import GlassCard from "../ui/GlassCard.jsx";
 import Button from "../ui/Button.jsx";
@@ -8,34 +8,53 @@ import Button from "../ui/Button.jsx";
 export default function QRScannerModal({ open, onClose, onScanSuccess }) {
   const [error, setError] = useState(null);
   const [scanning, setScanning] = useState(false);
+  const [cameras, setCameras] = useState([]);
+  const [activeCameraIndex, setActiveCameraIndex] = useState(0);
+
   const scannerRef = useRef(null);
   const isMountedRef = useRef(true);
+  const startPromiseRef = useRef(null);
+  const stopPromiseRef = useRef(null);
+  const hasScannedRef = useRef(false);
+  const selectedCameraIdRef = useRef("");
 
   const startCamera = async (isMountedRef) => {
     setError(null);
+    hasScannedRef.current = false;
     try {
-      // Clean up any existing scanner instance first
-      if (scannerRef.current) {
-        const existingScanner = scannerRef.current;
-        scannerRef.current = null;
-        if (existingScanner.isScanning) {
-          try {
-            await existingScanner.stop();
-          } catch (e) {
-            console.error("Error stopping existing scanner during startCamera:", e);
-          }
-        }
+      // 1. Wait for any pending start/stop operations to finish
+      if (stopPromiseRef.current) {
+        try {
+          await stopPromiseRef.current;
+        } catch (e) {}
+      }
+      if (startPromiseRef.current) {
+        try {
+          await startPromiseRef.current;
+        } catch (e) {}
       }
 
-      // Check if element is in the DOM
+      // 2. Stop camera if it's already running
+      if (scannerRef.current && scannerRef.current.isScanning) {
+        const stopPromise = scannerRef.current.stop();
+        stopPromiseRef.current = stopPromise;
+        await stopPromise;
+        stopPromiseRef.current = null;
+      }
+
+      // 3. Check if element is in the DOM
       const element = document.getElementById("qr-reader");
       if (!element) {
         console.warn("DOM element #qr-reader not found yet");
         return;
       }
 
-      const html5QrCode = new Html5Qrcode("qr-reader");
-      scannerRef.current = html5QrCode;
+      // 4. Instantiate scanner if it doesn't exist
+      if (!scannerRef.current) {
+        scannerRef.current = new Html5Qrcode("qr-reader");
+      }
+
+      const html5QrCode = scannerRef.current;
 
       const config = {
         fps: 20, // Increased FPS for faster scanning response times
@@ -50,18 +69,29 @@ export default function QRScannerModal({ open, onClose, onScanSuccess }) {
         }
       };
 
-      await html5QrCode.start(
-        { facingMode: "environment" },
+      // Prefer back camera (environment) primarily, unless the user manually switched
+      let cameraIdOrConfig = { facingMode: "environment" };
+      if (selectedCameraIdRef.current) {
+        cameraIdOrConfig = selectedCameraIdRef.current;
+      }
+
+      const startPromise = html5QrCode.start(
+        cameraIdOrConfig,
         config,
         async (decodedText) => {
+          if (hasScannedRef.current) return;
+          hasScannedRef.current = true;
+
           try {
             if (scannerRef.current && scannerRef.current.isScanning) {
-              await scannerRef.current.stop();
+              const stopPromise = scannerRef.current.stop();
+              stopPromiseRef.current = stopPromise;
+              await stopPromise;
+              stopPromiseRef.current = null;
             }
           } catch (err) {
             console.error("Stop failed on success:", err);
           } finally {
-            scannerRef.current = null;
             if (isMountedRef.current) {
               setScanning(false);
             }
@@ -69,13 +99,38 @@ export default function QRScannerModal({ open, onClose, onScanSuccess }) {
             onClose();
           }
         },
-        (errorMessage) => {
-          // quiet error logging
-        }
+        undefined // passing undefined to avoid CPU overhead and browser crashes
       );
+
+      startPromiseRef.current = startPromise;
+      await startPromise;
+      startPromiseRef.current = null;
 
       if (isMountedRef.current) {
         setScanning(true);
+      }
+
+      // Fetch cameras list to allow toggling/switching
+      try {
+        const camerasList = await Html5Qrcode.getCameras();
+        if (isMountedRef.current) {
+          setCameras(camerasList);
+          
+          // Identify which camera is active and update selection
+          try {
+            const trackSettings = html5QrCode.getRunningTrackSettings();
+            const activeCam = camerasList.find(cam => cam.id === trackSettings.deviceId);
+            if (activeCam) {
+              const idx = camerasList.indexOf(activeCam);
+              setActiveCameraIndex(idx);
+              selectedCameraIdRef.current = activeCam.id;
+            }
+          } catch (e) {
+            // track settings might not be fully populated immediately, fallback
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to get cameras list", e);
       }
     } catch (err) {
       console.error("Camera failed to start:", err);
@@ -92,18 +147,40 @@ export default function QRScannerModal({ open, onClose, onScanSuccess }) {
     setError(null);
 
     try {
-      if (scannerRef.current) {
-        const existingScanner = scannerRef.current;
-        scannerRef.current = null;
-        if (existingScanner.isScanning) {
-          await existingScanner.stop();
-        }
+      // 1. Wait for any pending start/stop operations to finish
+      if (stopPromiseRef.current) {
+        try {
+          await stopPromiseRef.current;
+        } catch (e) {}
+      }
+      if (startPromiseRef.current) {
+        try {
+          await startPromiseRef.current;
+        } catch (e) {}
       }
 
-      const html5QrCode = new Html5Qrcode("qr-reader");
-      scannerRef.current = html5QrCode;
+      // 2. Stop camera if it's running
+      if (scannerRef.current && scannerRef.current.isScanning) {
+        const stopPromise = scannerRef.current.stop();
+        stopPromiseRef.current = stopPromise;
+        await stopPromise;
+        stopPromiseRef.current = null;
+        setScanning(false);
+      }
 
-      const decodedText = await html5QrCode.scanFile(file, true);
+      // 3. Ensure we have the DOM element
+      const element = document.getElementById("qr-reader");
+      if (!element) {
+        console.warn("DOM element #qr-reader not found yet");
+        return;
+      }
+
+      // 4. Instantiate scanner if it doesn't exist
+      if (!scannerRef.current) {
+        scannerRef.current = new Html5Qrcode("qr-reader");
+      }
+
+      const decodedText = await scannerRef.current.scanFile(file, true);
       onScanSuccess(decodedText);
       onClose();
     } catch (err) {
@@ -111,9 +188,22 @@ export default function QRScannerModal({ open, onClose, onScanSuccess }) {
       setError("No QR code detected in this image. Please upload a clear shop QR code.");
       
       // Restart camera scanner after failed file input
-      if (open) {
+      if (open && isMountedRef.current) {
         startCamera(isMountedRef);
       }
+    }
+  };
+
+  const switchCamera = async () => {
+    if (cameras.length <= 1) return;
+    const nextIndex = (activeCameraIndex + 1) % cameras.length;
+    const nextCamera = cameras[nextIndex];
+    selectedCameraIdRef.current = nextCamera.id;
+    setActiveCameraIndex(nextIndex);
+    
+    // Restart camera with selected ID
+    if (isMountedRef.current) {
+      startCamera(isMountedRef);
     }
   };
 
@@ -137,14 +227,34 @@ export default function QRScannerModal({ open, onClose, onScanSuccess }) {
       isMountedRef.current = false;
       clearTimeout(timer);
       
-      // Stop scanning on cleanup
-      if (scannerRef.current) {
-        const scanner = scannerRef.current;
-        scannerRef.current = null;
-        if (scanner.isScanning) {
-          scanner.stop().catch((e) => console.error("Cleanup stop failed:", e));
+      const stopScanner = async () => {
+        // Wait for any pending start/stop
+        if (startPromiseRef.current) {
+          try {
+            await startPromiseRef.current;
+          } catch (e) {}
         }
-      }
+        if (stopPromiseRef.current) {
+          try {
+            await stopPromiseRef.current;
+          } catch (e) {}
+        }
+        if (scannerRef.current) {
+          const scanner = scannerRef.current;
+          if (scanner.isScanning) {
+            try {
+              await scanner.stop();
+            } catch (e) {
+              console.error("Cleanup stop failed:", e);
+            }
+          }
+          try {
+            scanner.clear();
+          } catch (e) {}
+          scannerRef.current = null;
+        }
+      };
+      stopScanner();
     };
   }, [open]);
 
@@ -190,8 +300,19 @@ export default function QRScannerModal({ open, onClose, onScanSuccess }) {
                 )}
               </div>
 
-              {/* Static QR Image Upload Section */}
-              <div className="mt-5 max-w-[280px] mx-auto">
+              {/* Action Buttons */}
+              <div className="mt-5 max-w-[280px] mx-auto flex flex-col gap-3">
+                {cameras.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={switchCamera}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-accent/20 bg-accent-dim text-xs font-semibold text-accent hover:bg-accent-dim/80 transition-all active:scale-[0.98]"
+                  >
+                    <RefreshCw size={14} />
+                    <span>Switch Camera ({activeCameraIndex + 1}/{cameras.length})</span>
+                  </button>
+                )}
+
                 <label className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-ink/10 hover:border-ink/20 bg-ink/5 hover:bg-ink/10 text-xs font-semibold text-ink-soft cursor-pointer transition-all active:scale-[0.98]">
                   <Upload size={14} />
                   <span>Upload QR Image</span>
