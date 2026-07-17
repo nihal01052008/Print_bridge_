@@ -24,16 +24,27 @@ if (missing.length) {
 const app = express();
 const server = http.createServer(app);
 
-const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5174";
+const allowedOrigins = [
+  "http://localhost:5174",
+  "http://localhost:5173",
+  "https://print-bridge.vercel.app",
+];
+
+if (process.env.FRONTEND_URL) {
+  allowedOrigins.push(process.env.FRONTEND_URL);
+}
+if (process.env.CLIENT_URL) {
+  allowedOrigins.push(process.env.CLIENT_URL);
+}
 
 const io = new SocketServer(server, {
-  cors: { origin: CLIENT_URL, credentials: true },
+  cors: { origin: allowedOrigins, credentials: true },
 });
 app.set("io", io); // controllers access via req.app.get("io")
 
 // --- Core middleware ---
 app.use(helmet());
-app.use(cors({ origin: CLIENT_URL, credentials: true }));
+app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(compression());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
