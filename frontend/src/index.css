@@ -1,0 +1,99 @@
+@import "tailwindcss";
+
+/* =========================================================
+   PrintBridge Design Tokens
+   Theme: Apple-inspired glassmorphism, paper & ink motif
+   ========================================================= */
+@theme {
+  /* Neutrals — warm paper white through to ink */
+  --color-paper: #faf9f6;
+  --color-paper-dim: #f2f1ec;
+  --color-ink: #1c1c1e;
+  --color-ink-soft: #3a3a3d;
+  --color-ink-faint: #6e6e73;
+
+  /* Signature accent — fountain-pen indigo */
+  --color-accent: #2b4c7e;
+  --color-accent-soft: #4a6fa5;
+  --color-accent-dim: #e8edf5;
+
+  /* Status accent — warm stamp amber, used sparingly */
+  --color-stamp: #8f5219;
+
+  --font-display: "SF Pro Display", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body: "SF Pro Text", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+
+  --radius-glass: 24px;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Glass card primitive — used across every dashboard/page */
+.glass {
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: var(--radius-glass);
+  box-shadow: 0 8px 32px rgba(28, 28, 30, 0.06);
+}
+
+.glass-strong {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+}
+
+/* Floating gradient blobs used for hero/background atmosphere */
+.blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.35;
+  pointer-events: none;
+  animation: float 18s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(30px, -40px) scale(1.08); }
+  66% { transform: translate(-25px, 25px) scale(0.95); }
+}
+
+/* Scroll-triggered fade-in, toggled via IntersectionObserver hook */
+.fade-in-up {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.7s ease, transform 0.7s ease;
+}
+.fade-in-up.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Respect reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .blob { animation: none; }
+  .fade-in-up { transition: none; opacity: 1; transform: none; }
+  html { scroll-behavior: auto; }
+}
+
+/* Custom scrollbar, quiet and Apple-like */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(28, 28, 30, 0.15);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
