@@ -44,15 +44,14 @@ export default function QRScannerModal({ open, onClose, onScanSuccess }) {
           return { width: size, height: size };
         },
         aspectRatio: 1.0,
+        videoConstraints: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
       };
 
       await html5QrCode.start(
-        {
-          facingMode: "environment",
-          // Request ideal resolution for sharpness without hard min/max constraints to prevent crashes
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        },
+        { facingMode: "environment" },
         config,
         async (decodedText) => {
           try {
