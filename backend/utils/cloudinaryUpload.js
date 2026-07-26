@@ -6,9 +6,8 @@ export function uploadBufferToCloudinary(buffer, filename) {
   return new Promise((resolve, reject) => {
     const ext = path.extname(filename || "").toLowerCase();
     const isImage = [".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg"].includes(ext);
-    const isPdf = ext === ".pdf";
 
-    const resourceType = isImage || isPdf ? "auto" : "raw";
+    const resourceType = isImage ? "image" : "raw";
 
     const options = {
       folder: "printbridge/orders",
@@ -16,6 +15,11 @@ export function uploadBufferToCloudinary(buffer, filename) {
       use_filename: true,
       unique_filename: true,
     };
+
+    if (!isImage && ext) {
+      const nameWithoutExt = path.parse(filename || "file").name.replace(/[^a-zA-Z0-9_-]/g, "_");
+      options.public_id = `${nameWithoutExt}_${Date.now()}${ext}`;
+    }
 
     const stream = cloudinary.uploader.upload_stream(options, (error, result) => {
       if (error) return reject(error);

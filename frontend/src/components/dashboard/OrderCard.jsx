@@ -81,6 +81,12 @@ function OrderCard({ order, onUpdateStatus, isNew }) {
               size: ${paperSizeCss};
               margin: 8mm;
             }
+            html, body {
+              color-scheme: light !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              color-adjust: exact !important;
+            }
             * {
               -webkit-print-color-adjust: exact !important;
               print-color-adjust: exact !important;
@@ -135,6 +141,9 @@ function OrderCard({ order, onUpdateStatus, isNew }) {
               max-width: 100%;
               max-height: 85vh;
               object-fit: contain;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              ${isBW ? "filter: grayscale(100%) !important; -webkit-filter: grayscale(100%) !important;" : "filter: none !important; -webkit-filter: none !important;"}
             }
             iframe, embed {
               width: 100%;
@@ -172,9 +181,19 @@ function OrderCard({ order, onUpdateStatus, isNew }) {
               if (hasPrinted) return;
               hasPrinted = true;
               setTimeout(function() {
+                try {
+                  const printDoc = document.getElementById("printDoc");
+                  if (printDoc && printDoc.contentWindow) {
+                    printDoc.contentWindow.focus();
+                    printDoc.contentWindow.print();
+                    return;
+                  }
+                } catch (e) {
+                  // Fallback to top window print if iframe print cannot be directly accessed
+                }
                 window.focus();
                 window.print();
-              }, 500);
+              }, 600);
             }
             window.onload = function() {
               setTimeout(triggerPrint, 1000);
