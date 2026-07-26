@@ -8,7 +8,6 @@ import SearchBar from "../components/dashboard/SearchBar.jsx";
 import StatCards from "../components/admin/StatCards.jsx";
 import ShopRow from "../components/admin/ShopRow.jsx";
 import CreateShopModal from "../components/admin/CreateShopModal.jsx";
-import AdminOrderRow from "../components/admin/AdminOrderRow.jsx";
 import Button from "../components/ui/Button.jsx";
 import api from "../lib/api.js";
 
@@ -54,19 +53,26 @@ function AdminDashboardContent({ onLogout }) {
   const [loadingShops, setLoadingShops] = useState(true);
 
   const loadStats = useCallback(() => {
-    api.get("/admin/stats").then((res) => setStats(res.data.stats));
+    api
+      .get("/admin/stats")
+      .then((res) => setStats(res.data.stats))
+      .catch((err) => console.error("Failed to load admin stats:", err));
   }, []);
 
   const loadShops = useCallback(() => {
     setLoadingShops(true);
     api
       .get("/shops", { params: shopSearch ? { search: shopSearch } : {} })
-      .then((res) => setShops(res.data.shops))
+      .then((res) => setShops(res.data.shops || []))
+      .catch((err) => console.error("Failed to load shops:", err))
       .finally(() => setLoadingShops(false));
   }, [shopSearch]);
 
   const loadRecentOrders = useCallback(() => {
-    api.get("/admin/orders/recent").then((res) => setRecentOrders(res.data.orders));
+    api
+      .get("/admin/orders/recent")
+      .then((res) => setRecentOrders(res.data.orders || []))
+      .catch((err) => console.error("Failed to load recent orders:", err));
   }, []);
 
   useEffect(() => {

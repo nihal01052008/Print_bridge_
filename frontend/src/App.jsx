@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react";
 import { Routes, Route } from "react-router-dom";
 import ScrollToTop from "./components/layout/ScrollToTop.jsx";
 import PageLoader from "./components/layout/PageLoader.jsx";
+import ProtectedRoute from "./components/auth/ProtectedRoute.jsx";
 
 const Landing = lazy(() => import("./pages/Landing.jsx"));
 const CustomerUpload = lazy(() => import("./pages/CustomerUpload.jsx"));
@@ -18,8 +19,22 @@ export default function App() {
           <Route path="/" element={<Landing />} />
           <Route path="/upload" element={<CustomerUpload />} />
           <Route path="/upload/:shopSlug" element={<CustomerUpload />} />
-          <Route path="/shop/dashboard" element={<ShopDashboard />} />
-          <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          <Route
+            path="/shop/dashboard"
+            element={
+              <ProtectedRoute role="shop">
+                <ShopDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/dashboard"
+            element={
+              <ProtectedRoute role="admin">
+                <AdminDashboard />
+              </ProtectedRoute>
+            }
+          />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>

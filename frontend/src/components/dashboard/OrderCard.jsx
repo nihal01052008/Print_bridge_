@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { FileText, Phone, Loader2, ChevronDown, Download, Printer, Eye, X } from "lucide-react";
+import { FileText, Phone, Loader2, ChevronDown, Download, Printer, Eye, X, ExternalLink } from "lucide-react";
 import GlassCard from "../ui/GlassCard.jsx";
 import StatusBadge from "./StatusBadge.jsx";
 
@@ -25,6 +25,26 @@ function timeAgo(dateStr) {
   return new Date(dateStr).toLocaleDateString();
 }
 
+function getFileType(file) {
+  const name = (file.originalName || "").toLowerCase();
+  const format = (file.format || "").toLowerCase();
+  const url = (file.url || "").toLowerCase();
+
+  if (["jpg", "jpeg", "png", "webp", "gif", "svg"].includes(format) || /\.(jpg|jpeg|png|webp|gif|svg)($|\?)/i.test(name || url)) {
+    return "image";
+  }
+  if (format === "pdf" || /\.pdf($|\?)/i.test(name || url)) {
+    return "pdf";
+  }
+  if (
+    ["doc", "docx", "ppt", "pptx", "xls", "xlsx", "txt", "csv", "rtf"].includes(format) ||
+    /\.(doc|docx|ppt|pptx|xls|xlsx|txt|csv|rtf)($|\?)/i.test(name || url)
+  ) {
+    return "document";
+  }
+  return "other";
+}
+
 export default function OrderCard({ order, onUpdateStatus, isNew }) {
   const [updating, setUpdating] = useState(false);
   const [previewFile, setPreviewFile] = useState(null);
@@ -40,15 +60,39 @@ export default function OrderCard({ order, onUpdateStatus, isNew }) {
     }
   }
 
-  const handlePrint = (fileUrl) => {
+  const handlePrint = (file) => {
+    const fileUrl = file.url;
+    const fileType = getFileType(file);
+
+    if (fileType === "image") {
+      const printWindow = window.open("", "_blank");
+      if (printWindow) {
+        printWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head><title>Print ${file.originalName}</title></head>
+            <body style="margin:0; display:flex; justify-content:center; align-items:center; min-height:100vh;">
+              <img src="${fileUrl}" style="max-width:100%; max-height:100vh; object-contain;" onload="window.print(); window.close();" />
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+      }
+      return;
+    }
+
     const printWindow = window.open(fileUrl, "_blank");
     if (printWindow) {
       printWindow.addEventListener("load", () => {
-        printWindow.print();
+        try {
+          printWindow.print();
+        } catch (e) {}
       });
       setTimeout(() => {
-        printWindow.print();
-      }, 1000);
+        try {
+          printWindow.print();
+        } catch (e) {}
+      }, 1200);
     }
   };
 
@@ -64,7 +108,7 @@ export default function OrderCard({ order, onUpdateStatus, isNew }) {
     if (actionType === "preview") {
       setPreviewFile(file);
     } else if (actionType === "print") {
-      handlePrint(file.url);
+      handlePrint(file);
       try {
         await onUpdateStatus(order._id, "ready");
       } catch (err) {
@@ -134,47 +178,43 @@ export default function OrderCard({ order, onUpdateStatus, isNew }) {
         <div className="mt-2 border-t border-ink/5 pt-3">
           <p className="text-xs font-semibold text-ink-soft mb-2">Print Files:</p>
           <ul className="space-y-2">
-            {order.files.map((file, idx) => {
-              const isImg = ["jpg", "jpeg", "png", "webp", "gif"].includes(file.format?.toLowerCase()) || 
-                            /\.(jpg|jpeg|png|webp|gif)$/i.test(file.url);
-              return (
-                <li key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-paper-dim/40 p-2.5 rounded-xl hover:bg-paper-dim/75 transition-colors">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <FileText size={15} className="text-ink-soft shrink-0" />
-                    <span className="text-xs font-medium text-ink-soft truncate" title={file.originalName}>
-                      {file.originalName}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-                    <button
-                      onClick={() => handleFileAction("preview", file)}
-                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-ink-soft hover:bg-white/80 transition-colors"
-                    >
-                      <Eye size={12} />
-                      Preview
-                    </button>
-                    <a
-                      href={file.url}
-                      download={file.originalName}
-                      target="_blank"
-                      rel="noreferrer"
-                      onClick={() => handleFileAction("download", file)}
-                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-ink-soft hover:bg-white/80 transition-colors"
-                    >
-                      <Download size={12} />
-                      Download
-                    </a>
-                    <button
-                      onClick={() => handleFileAction("print", file)}
-                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-accent text-white hover:bg-accent-soft transition-colors"
-                    >
-                      <Printer size={12} />
-                      Print
-                    </button>
-                  </div>
-                </li>
-              );
-            })}
+            {order.files.map((file, idx) => (
+              <li key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-paper-dim/40 p-2.5 rounded-xl hover:bg-paper-dim/75 transition-colors">
+                <div className="flex items-center gap-2 min-w-0">
+                  <FileText size={15} className="text-ink-soft shrink-0" />
+                  <span className="text-xs font-medium text-ink-soft truncate" title={file.originalName}>
+                    {file.originalName}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                  <button
+                    onClick={() => handleFileAction("preview", file)}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-ink-soft hover:bg-white/80 transition-colors"
+                  >
+                    <Eye size={12} />
+                    Preview
+                  </button>
+                  <a
+                    href={file.url}
+                    download={file.originalName}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={() => handleFileAction("download", file)}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-ink-soft hover:bg-white/80 transition-colors"
+                  >
+                    <Download size={12} />
+                    Download
+                  </a>
+                  <button
+                    onClick={() => handleFileAction("print", file)}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-accent text-white hover:bg-accent-soft transition-colors"
+                  >
+                    <Printer size={12} />
+                    Print
+                  </button>
+                </div>
+              </li>
+            ))}
           </ul>
         </div>
       </GlassCard>
@@ -195,9 +235,9 @@ export default function OrderCard({ order, onUpdateStatus, isNew }) {
               exit={{ opacity: 0, y: 16, scale: 0.98 }}
               transition={{ duration: 0.25, ease: "easeOut" }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-3xl overflow-hidden"
+              className="w-full max-w-4xl overflow-hidden"
             >
-              <GlassCard strong className="p-6 relative flex flex-col max-h-[85vh]">
+              <GlassCard strong className="p-6 relative flex flex-col max-h-[88vh]">
                 <div className="flex items-center justify-between pb-4 border-b border-ink/10 pr-8">
                   <h3 className="font-display font-medium text-lg text-ink truncate">
                     {previewFile.originalName}
@@ -211,30 +251,42 @@ export default function OrderCard({ order, onUpdateStatus, isNew }) {
                   </button>
                 </div>
 
-                <div className="flex-1 overflow-auto py-6 grid place-items-center bg-paper-dim/30 rounded-xl mt-4">
-                  {["jpg", "jpeg", "png", "webp", "gif"].includes(previewFile.format?.toLowerCase()) || 
-                   /\.(jpg|jpeg|png|webp|gif)$/i.test(previewFile.url) ? (
+                <div className="flex-1 overflow-auto py-4 grid place-items-center bg-paper-dim/30 rounded-xl mt-4 min-h-[350px]">
+                  {getFileType(previewFile) === "image" ? (
                     <img
                       src={previewFile.url}
                       alt={previewFile.originalName}
-                      className="max-h-[50vh] object-contain rounded-lg shadow-sm"
+                      className="max-h-[60vh] object-contain rounded-lg shadow-sm"
                     />
-                  ) : previewFile.format?.toLowerCase() === "pdf" || /\.pdf$/i.test(previewFile.url) ? (
+                  ) : getFileType(previewFile) === "pdf" ? (
                     <iframe
                       src={previewFile.url}
                       title={previewFile.originalName}
-                      className="w-full h-[50vh] rounded-lg border border-ink/10 bg-white"
+                      className="w-full h-[60vh] rounded-lg border border-ink/10 bg-white"
                     />
                   ) : (
-                    <div className="text-center p-8 space-y-3">
-                      <FileText size={48} className="text-ink-faint mx-auto" />
-                      <p className="text-sm text-ink-soft">Preview not available for this format.</p>
-                      <p className="text-xs text-ink-faint">Please download to view.</p>
+                    <div className="w-full h-full flex flex-col items-center justify-center p-4">
+                      <iframe
+                        src={`https://docs.google.com/gview?url=${encodeURIComponent(previewFile.url)}&embedded=true`}
+                        title={previewFile.originalName}
+                        className="w-full h-[55vh] rounded-lg border border-ink/10 bg-white"
+                      />
+                      <div className="mt-3 flex items-center justify-center gap-3 text-xs">
+                        <span className="text-ink-faint">Document Preview powered by Google Viewer</span>
+                        <a
+                          href={`https://docs.google.com/gview?url=${encodeURIComponent(previewFile.url)}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-accent hover:underline flex items-center gap-1 font-medium"
+                        >
+                          Open in Google Docs <ExternalLink size={12} />
+                        </a>
+                      </div>
                     </div>
                   )}
                 </div>
 
-                <div className="flex items-center justify-end gap-3 pt-4 border-t border-ink/10 mt-4">
+                <div className="flex flex-wrap items-center justify-end gap-3 pt-4 border-t border-ink/10 mt-4">
                   <a
                     href={previewFile.url}
                     download={previewFile.originalName}
@@ -244,14 +296,14 @@ export default function OrderCard({ order, onUpdateStatus, isNew }) {
                     className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium text-ink-soft hover:bg-paper-dim transition-colors"
                   >
                     <Download size={16} />
-                    Download & Preview
+                    Download File
                   </a>
                   <button
                     onClick={() => handleFileAction("print", previewFile)}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold bg-accent text-white hover:bg-accent-soft transition-colors"
                   >
                     <Printer size={16} />
-                    Print
+                    Print File
                   </button>
                 </div>
               </GlassCard>

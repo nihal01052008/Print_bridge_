@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
+import { X, Loader2, AlertCircle, CheckCircle2, Eye, EyeOff } from "lucide-react";
 import GlassCard from "../ui/GlassCard.jsx";
 import Button from "../ui/Button.jsx";
 
@@ -133,16 +133,49 @@ export default function RegisterShopModal({ open, onClose, onRegister }) {
 }
 
 function Field({ label, value, onChange, type = "text", required, hint }) {
+  const [show, setShow] = useState(false);
+  const inputRef = useRef(null);
+
+  const toggleShow = () => {
+    const input = inputRef.current;
+    const start = input?.selectionStart;
+    const end = input?.selectionEnd;
+    setShow((prev) => !prev);
+    requestAnimationFrame(() => {
+      if (input && start !== null && end !== null) {
+        input.setSelectionRange(start, end);
+        input.focus();
+      }
+    });
+  };
+
+  const isPasswordField = type === "password";
+  const actualType = isPasswordField ? (show ? "text" : "password") : type;
+
   return (
     <div>
       <label className="text-sm font-medium text-ink-soft">{label}</label>
-      <input
-        type={type}
-        required={required}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="mt-1.5 w-full glass rounded-2xl px-4 py-2.5 text-ink focus:outline-none focus:ring-2 focus:ring-accent/40"
-      />
+      <div className="relative mt-1.5">
+        <input
+          ref={inputRef}
+          type={actualType}
+          required={required}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className={`w-full glass rounded-2xl ${isPasswordField ? "pl-4 pr-11" : "px-4"} py-2.5 text-ink focus:outline-none focus:ring-2 focus:ring-accent/40`}
+        />
+        {isPasswordField && (
+          <button
+            type="button"
+            onClick={toggleShow}
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-ink-faint hover:text-ink transition-colors focus:outline-none"
+            aria-label={show ? "Hide password" : "Show password"}
+            tabIndex={-1}
+          >
+            {show ? <EyeOff size={18} /> : <Eye size={18} />}
+          </button>
+        )}
+      </div>
       {hint && <p className="text-xs text-ink-faint mt-1">{hint}</p>}
     </div>
   );

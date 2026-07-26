@@ -1,14 +1,31 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion } from "framer-motion";
-import { Loader2, AlertCircle, LogIn } from "lucide-react";
+import { Loader2, AlertCircle, LogIn, Eye, EyeOff } from "lucide-react";
 import GlassCard from "../ui/GlassCard.jsx";
 import Button from "../ui/Button.jsx";
 
 export default function LoginForm({ title, subtitle, icon: Icon, onSubmit }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const passwordInputRef = useRef(null);
+
+  const togglePasswordVisibility = () => {
+    const input = passwordInputRef.current;
+    const start = input?.selectionStart;
+    const end = input?.selectionEnd;
+
+    setShowPassword((prev) => !prev);
+
+    requestAnimationFrame(() => {
+      if (input && start !== null && end !== null) {
+        input.setSelectionRange(start, end);
+        input.focus();
+      }
+    });
+  };
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -59,15 +76,27 @@ export default function LoginForm({ title, subtitle, icon: Icon, onSubmit }) {
           <label className="text-sm font-medium text-ink-soft" htmlFor="password">
             Password
           </label>
-          <input
-            id="password"
-            type="password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="mt-2 w-full glass rounded-2xl px-4 py-3 text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-accent/40"
-            placeholder="••••••••"
-          />
+          <div className="relative mt-2">
+            <input
+              id="password"
+              ref={passwordInputRef}
+              type={showPassword ? "text" : "password"}
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full glass rounded-2xl pl-4 pr-11 py-3 text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-accent/40"
+              placeholder="••••••••"
+            />
+            <button
+              type="button"
+              onClick={togglePasswordVisibility}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-ink-faint hover:text-ink transition-colors focus:outline-none"
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              tabIndex={-1}
+            >
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
         </div>
 
         {error && (

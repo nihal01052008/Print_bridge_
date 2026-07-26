@@ -8,8 +8,17 @@ const ACCEPTED = {
   "image/jpeg": [".jpg", ".jpeg"],
   "image/png": [".png"],
   "image/webp": [".webp"],
+  "image/gif": [".gif"],
+  "image/svg+xml": [".svg"],
   "application/msword": [".doc"],
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
+  "application/vnd.ms-powerpoint": [".ppt"],
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": [".pptx"],
+  "application/vnd.ms-excel": [".xls"],
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
+  "text/plain": [".txt"],
+  "text/csv": [".csv"],
+  "application/rtf": [".rtf"],
 };
 
 function formatSize(bytes) {
@@ -52,7 +61,9 @@ export default function Dropzone({ files, onChange }) {
         <p className="mt-4 text-ink font-medium">
           {isDragActive ? "Drop your files here" : "Drag files here, or click to browse"}
         </p>
-        <p className="mt-1 text-sm text-ink-faint">PDF, Word, or images — up to 25MB each, 10 files max</p>
+        <p className="mt-1 text-sm text-ink-faint">
+          PDF, Word, Excel, PowerPoint, Text, or images — up to 25MB each, 10 files max
+        </p>
       </div>
 
       {files.length > 0 && (

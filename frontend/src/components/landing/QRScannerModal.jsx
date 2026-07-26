@@ -18,77 +18,126 @@ export default function QRScannerModal({ open, onClose, onScanSuccess }) {
   const hasScannedRef = useRef(false);
   const selectedCameraIdRef = useRef("");
 
-  const startCamera = async (isMountedRef) => {
+  // Helper to identify back/environment camera from device list
+  const findBackCamera = (deviceList) => {
+    if (!deviceList || deviceList.length === 0) return null;
+    const backKeywords = ["back", "rear", "environment", "main", "wide", "facing back", "0, facing back"];
+    
+    // First, check explicit label matches
+    const matched = deviceList.find((device) => {
+      const label = (device.label || "").toLowerCase();
+      return backKeywords.some((keyword) => label.includes(keyword));
+    });
+    if (matched) return matched;
+
+    // If multiple devices exist and no explicit back label, usually index > 0 is back camera on mobile
+    if (deviceList.length > 1) {
+      return deviceList[deviceList.length - 1];
+    }
+
+    return deviceList[0];
+  };
+
+  const stopScannerSafely = async () => {
+    if (stopPromiseRef.current) {
+      try {
+        await stopPromiseRef.current;
+      } catch (e) {}
+    }
+    if (startPromiseRef.current) {
+      try {
+        await startPromiseRef.current;
+      } catch (e) {}
+    }
+
+    if (scannerRef.current) {
+      const instance = scannerRef.current;
+      if (instance.isScanning) {
+        try {
+          const stopPromise = instance.stop();
+          stopPromiseRef.current = stopPromise;
+          await stopPromise;
+          stopPromiseRef.current = null;
+        } catch (e) {
+          console.warn("Error stopping scanner:", e);
+        }
+      }
+      try {
+        instance.clear();
+      } catch (e) {}
+      scannerRef.current = null;
+    }
+  };
+
+  const startCamera = async () => {
+    if (!isMountedRef.current) return;
     setError(null);
     hasScannedRef.current = false;
+
     try {
-      // 1. Wait for any pending start/stop operations to finish
-      if (stopPromiseRef.current) {
-        try {
-          await stopPromiseRef.current;
-        } catch (e) {}
-      }
-      if (startPromiseRef.current) {
-        try {
-          await startPromiseRef.current;
-        } catch (e) {}
-      }
+      await stopScannerSafely();
 
-      // 2. Stop camera if it's already running
-      if (scannerRef.current && scannerRef.current.isScanning) {
-        const stopPromise = scannerRef.current.stop();
-        stopPromiseRef.current = stopPromise;
-        await stopPromise;
-        stopPromiseRef.current = null;
-      }
-
-      // 3. Check if element is in the DOM
       const element = document.getElementById("qr-reader");
       if (!element) {
-        console.warn("DOM element #qr-reader not found yet");
+        console.warn("DOM element #qr-reader not found");
         return;
       }
 
-      // 4. Instantiate scanner if it doesn't exist
-      if (!scannerRef.current) {
-        scannerRef.current = new Html5Qrcode("qr-reader");
+      // 1. Fetch available cameras first if not already fetched
+      let availableCameras = cameras;
+      if (availableCameras.length === 0) {
+        try {
+          availableCameras = await Html5Qrcode.getCameras();
+          if (isMountedRef.current) {
+            setCameras(availableCameras);
+          }
+        } catch (e) {
+          console.warn("Could not enumerate camera devices before start:", e);
+        }
       }
 
+      // 2. Determine target camera ID or fallback constraint
+      let cameraConfig;
+      if (selectedCameraIdRef.current) {
+        cameraConfig = selectedCameraIdRef.current;
+      } else if (availableCameras && availableCameras.length > 0) {
+        const preferredBack = findBackCamera(availableCameras);
+        if (preferredBack) {
+          cameraConfig = preferredBack.id;
+          selectedCameraIdRef.current = preferredBack.id;
+          const idx = availableCameras.findIndex((c) => c.id === preferredBack.id);
+          if (idx !== -1 && isMountedRef.current) {
+            setActiveCameraIndex(idx);
+          }
+        } else {
+          cameraConfig = { facingMode: "environment" };
+        }
+      } else {
+        cameraConfig = { facingMode: "environment" };
+      }
+
+      // 3. Create fresh scanner instance
+      scannerRef.current = new Html5Qrcode("qr-reader");
       const html5QrCode = scannerRef.current;
 
       const config = {
-        fps: 20, // Increased FPS for faster scanning response times
+        fps: 20,
         qrbox: (width, height) => {
           const size = Math.min(width, height) * 0.75;
-          return { width: size, height: size };
+          return { width: Math.max(size, 150), height: Math.max(size, 150) };
         },
         aspectRatio: 1.0,
-        videoConstraints: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        }
       };
 
-      // Prefer back camera (environment) primarily, unless the user manually switched
-      let cameraIdOrConfig = { facingMode: "environment" };
-      if (selectedCameraIdRef.current) {
-        cameraIdOrConfig = selectedCameraIdRef.current;
-      }
-
       const startPromise = html5QrCode.start(
-        cameraIdOrConfig,
+        cameraConfig,
         config,
         async (decodedText) => {
           if (hasScannedRef.current) return;
           hasScannedRef.current = true;
 
           try {
-            if (scannerRef.current && scannerRef.current.isScanning) {
-              const stopPromise = scannerRef.current.stop();
-              stopPromiseRef.current = stopPromise;
-              await stopPromise;
-              stopPromiseRef.current = null;
-            }
+            await stopScannerSafely();
           } catch (err) {
             console.error("Stop failed on success:", err);
           } finally {
@@ -99,7 +148,7 @@ export default function QRScannerModal({ open, onClose, onScanSuccess }) {
             onClose();
           }
         },
-        undefined // passing undefined to avoid CPU overhead and browser crashes
+        undefined
       );
 
       startPromiseRef.current = startPromise;
@@ -110,30 +159,44 @@ export default function QRScannerModal({ open, onClose, onScanSuccess }) {
         setScanning(true);
       }
 
-      // Fetch cameras list to allow toggling/switching
+      // Update camera index if track settings are available
       try {
-        const camerasList = await Html5Qrcode.getCameras();
-        if (isMountedRef.current) {
-          setCameras(camerasList);
-          
-          // Identify which camera is active and update selection
-          try {
-            const trackSettings = html5QrCode.getRunningTrackSettings();
-            const activeCam = camerasList.find(cam => cam.id === trackSettings.deviceId);
-            if (activeCam) {
-              const idx = camerasList.indexOf(activeCam);
-              setActiveCameraIndex(idx);
-              selectedCameraIdRef.current = activeCam.id;
-            }
-          } catch (e) {
-            // track settings might not be fully populated immediately, fallback
+        const trackSettings = html5QrCode.getRunningTrackSettings();
+        if (trackSettings?.deviceId && availableCameras.length > 0) {
+          const activeCam = availableCameras.find((cam) => cam.id === trackSettings.deviceId);
+          if (activeCam && isMountedRef.current) {
+            const idx = availableCameras.indexOf(activeCam);
+            setActiveCameraIndex(idx);
+            selectedCameraIdRef.current = activeCam.id;
           }
         }
-      } catch (e) {
-        console.warn("Failed to get cameras list", e);
-      }
+      } catch (e) {}
     } catch (err) {
-      console.error("Camera failed to start:", err);
+      console.error("Camera failed to start with primary config:", err);
+      // Fallback attempt: If targeted camera ID failed, try simple environment or user facing mode
+      try {
+        if (scannerRef.current) {
+          scannerRef.current = new Html5Qrcode("qr-reader");
+          const fallbackConfig = { facingMode: "environment" };
+          const fallbackPromise = scannerRef.current.start(
+            fallbackConfig,
+            { fps: 15, aspectRatio: 1.0 },
+            (text) => {
+              onScanSuccess(text);
+              onClose();
+            },
+            undefined
+          );
+          startPromiseRef.current = fallbackPromise;
+          await fallbackPromise;
+          startPromiseRef.current = null;
+          if (isMountedRef.current) setScanning(true);
+          return;
+        }
+      } catch (fallbackErr) {
+        console.error("Fallback camera start failed:", fallbackErr);
+      }
+
       if (isMountedRef.current) {
         setError("Could not access camera. Please check permissions or try uploading a QR image.");
         setScanning(false);
@@ -147,49 +210,21 @@ export default function QRScannerModal({ open, onClose, onScanSuccess }) {
     setError(null);
 
     try {
-      // 1. Wait for any pending start/stop operations to finish
-      if (stopPromiseRef.current) {
-        try {
-          await stopPromiseRef.current;
-        } catch (e) {}
-      }
-      if (startPromiseRef.current) {
-        try {
-          await startPromiseRef.current;
-        } catch (e) {}
-      }
+      await stopScannerSafely();
 
-      // 2. Stop camera if it's running
-      if (scannerRef.current && scannerRef.current.isScanning) {
-        const stopPromise = scannerRef.current.stop();
-        stopPromiseRef.current = stopPromise;
-        await stopPromise;
-        stopPromiseRef.current = null;
-        setScanning(false);
-      }
-
-      // 3. Ensure we have the DOM element
       const element = document.getElementById("qr-reader");
-      if (!element) {
-        console.warn("DOM element #qr-reader not found yet");
-        return;
-      }
+      if (!element) return;
 
-      // 4. Instantiate scanner if it doesn't exist
-      if (!scannerRef.current) {
-        scannerRef.current = new Html5Qrcode("qr-reader");
-      }
-
+      scannerRef.current = new Html5Qrcode("qr-reader");
       const decodedText = await scannerRef.current.scanFile(file, true);
       onScanSuccess(decodedText);
       onClose();
     } catch (err) {
       console.error("File scan failed:", err);
       setError("No QR code detected in this image. Please upload a clear shop QR code.");
-      
-      // Restart camera scanner after failed file input
+
       if (open && isMountedRef.current) {
-        startCamera(isMountedRef);
+        startCamera();
       }
     }
   };
@@ -200,10 +235,9 @@ export default function QRScannerModal({ open, onClose, onScanSuccess }) {
     const nextCamera = cameras[nextIndex];
     selectedCameraIdRef.current = nextCamera.id;
     setActiveCameraIndex(nextIndex);
-    
-    // Restart camera with selected ID
+
     if (isMountedRef.current) {
-      startCamera(isMountedRef);
+      await startCamera();
     }
   };
 
@@ -213,48 +247,21 @@ export default function QRScannerModal({ open, onClose, onScanSuccess }) {
     if (!open) {
       setError(null);
       setScanning(false);
+      selectedCameraIdRef.current = "";
+      stopScannerSafely();
       return;
     }
 
-    // A 250ms timeout ensures the modal is fully mounted and animation has progressed before camera starts
     const timer = setTimeout(() => {
       if (isMountedRef.current) {
-        startCamera(isMountedRef);
+        startCamera();
       }
     }, 250);
 
     return () => {
       isMountedRef.current = false;
       clearTimeout(timer);
-      
-      const stopScanner = async () => {
-        // Wait for any pending start/stop
-        if (startPromiseRef.current) {
-          try {
-            await startPromiseRef.current;
-          } catch (e) {}
-        }
-        if (stopPromiseRef.current) {
-          try {
-            await stopPromiseRef.current;
-          } catch (e) {}
-        }
-        if (scannerRef.current) {
-          const scanner = scannerRef.current;
-          if (scanner.isScanning) {
-            try {
-              await scanner.stop();
-            } catch (e) {
-              console.error("Cleanup stop failed:", e);
-            }
-          }
-          try {
-            scanner.clear();
-          } catch (e) {}
-          scannerRef.current = null;
-        }
-      };
-      stopScanner();
+      stopScannerSafely();
     };
   }, [open]);
 

@@ -34,8 +34,21 @@ export async function login(req, res, next) {
 
 export async function me(req, res, next) {
   try {
-    const user = await User.findById(req.user.id);
-    if (!user) throw new ApiError(404, "User not found");
+    const user = await User.findById(req.user.id).populate("shop");
+    if (!user || !user.isActive) throw new ApiError(401, "User not found or inactive");
+
+    if (user.role === "shop") {
+      if (!user.shop) {
+        throw new ApiError(401, "This account is not associated with any shop.");
+      }
+      if (user.shop.isApproved === false) {
+        throw new ApiError(403, "Your shop registration request is pending admin approval.");
+      }
+      if (!user.shop.isActive) {
+        throw new ApiError(403, "Your shop account has been suspended by the administrator.");
+      }
+    }
+
     res.json({ success: true, user: user.toSafeObject() });
   } catch (err) {
     next(err);

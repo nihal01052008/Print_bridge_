@@ -73,9 +73,23 @@ function ShopDashboardContent({ onLogout }) {
   const [query, setQuery] = useState("");
   const [newOrderIds, setNewOrderIds] = useState(new Set());
   const [togglingAccept, setTogglingAccept] = useState(false);
+  const [fetchError, setFetchError] = useState(null);
 
   useEffect(() => {
-    api.get("/shops/me").then((res) => setShop(res.data.shop));
+    let mounted = true;
+    api
+      .get("/shops/me")
+      .then((res) => {
+        if (mounted) setShop(res.data.shop);
+      })
+      .catch((err) => {
+        if (mounted) {
+          setFetchError(err.response?.data?.message || "Failed to load shop details.");
+        }
+      });
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const loadOrders = useCallback(() => {
@@ -84,7 +98,10 @@ function ShopDashboardContent({ onLogout }) {
       ? api.get("/orders/shop/search", { params: { q: query.trim() } })
       : api.get("/orders/shop/mine", { params: statusFilter ? { status: statusFilter } : {} });
 
-    request.then((res) => setOrders(res.data.orders)).finally(() => setOrdersLoading(false));
+    request
+      .then((res) => setOrders(res.data?.orders || []))
+      .catch((err) => console.error("Failed to load orders:", err))
+      .finally(() => setOrdersLoading(false));
   }, [statusFilter, query]);
 
   useEffect(() => {
@@ -127,10 +144,21 @@ function ShopDashboardContent({ onLogout }) {
 
   const visibleOrders = statusFilter && !query ? orders.filter((o) => o.status === statusFilter) : orders;
 
-  if (!shop) {
+  if (!shop && !fetchError) {
     return (
       <div className="min-h-screen grid place-items-center bg-paper">
         <Loader2 className="animate-spin text-ink-faint" size={24} />
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-paper p-6 text-center">
+        <p className="text-sm text-stamp font-medium mb-4">{fetchError}</p>
+        <Button variant="secondary" size="md" onClick={onLogout}>
+          Sign out
+        </Button>
       </div>
     );
   }
@@ -145,7 +173,13 @@ function ShopDashboardContent({ onLogout }) {
       </DashboardTopbar>
 
       <main className="max-w-6xl mx-auto px-6 py-8 grid lg:grid-cols-[1fr_320px] gap-8">
-        <div>
+        {/* QR Code Panel - Order 1 on mobile (< lg), Order 2 on desktop (lg+) */}
+        <div className="order-1 lg:order-2 lg:sticky lg:top-24 h-fit">
+          <QRPanel shop={shop} />
+        </div>
+
+        {/* Orders Section - Order 2 on mobile (< lg), Order 1 on desktop (lg+) */}
+        <div className="order-2 lg:order-1">
           <StatsStrip orders={orders} />
 
           <div className="mt-6 flex flex-col sm:flex-row gap-3">
@@ -175,10 +209,6 @@ function ShopDashboardContent({ onLogout }) {
               </AnimatePresence>
             )}
           </div>
-        </div>
-
-        <div className="lg:sticky lg:top-24 h-fit">
-          <QRPanel shop={shop} />
         </div>
       </main>
     </div>
