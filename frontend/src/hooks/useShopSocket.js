@@ -11,8 +11,16 @@ export function useShopSocket(shopId, { onNew, onUpdated }) {
   useEffect(() => {
     if (!shopId) return;
     const socket = getSocket();
+
+    const joinRoom = () => {
+      socket.emit("shop:join", shopId);
+    };
+
     socket.connect();
-    socket.emit("shop:join", shopId);
+    if (socket.connected) {
+      joinRoom();
+    }
+    socket.on("connect", joinRoom);
 
     const handleNew = (order) => onNewRef.current?.(order);
     const handleUpdated = (order) => onUpdatedRef.current?.(order);
@@ -22,6 +30,7 @@ export function useShopSocket(shopId, { onNew, onUpdated }) {
 
     return () => {
       socket.emit("shop:leave", shopId);
+      socket.off("connect", joinRoom);
       socket.off("order:new", handleNew);
       socket.off("order:updated", handleUpdated);
       socket.disconnect();

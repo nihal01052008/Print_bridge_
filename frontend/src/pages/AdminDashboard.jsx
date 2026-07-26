@@ -212,7 +212,7 @@ function AdminDashboardContent({ onLogout }) {
             ) : (
               approvedShops.map((shop) => {
                 const shopOrders = recentOrders.filter(
-                  (order) => (order.shop?._id || order.shop) === shop._id
+                  (order) => String(order.shop?._id || order.shop) === String(shop._id)
                 );
                 return (
                   <ShopRow

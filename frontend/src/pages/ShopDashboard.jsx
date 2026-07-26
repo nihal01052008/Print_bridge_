@@ -94,9 +94,13 @@ function ShopDashboardContent({ onLogout }) {
 
   const loadOrders = useCallback(() => {
     setOrdersLoading(true);
+    const params = {};
+    if (statusFilter) params.status = statusFilter;
+    if (query.trim()) params.q = query.trim();
+
     const request = query.trim()
-      ? api.get("/orders/shop/search", { params: { q: query.trim() } })
-      : api.get("/orders/shop/mine", { params: statusFilter ? { status: statusFilter } : {} });
+      ? api.get("/orders/shop/search", { params })
+      : api.get("/orders/shop/mine", { params });
 
     request
       .then((res) => setOrders(res.data?.orders || []))
@@ -142,7 +146,7 @@ function ShopDashboardContent({ onLogout }) {
     }
   }
 
-  const visibleOrders = statusFilter && !query ? orders.filter((o) => o.status === statusFilter) : orders;
+  const visibleOrders = statusFilter ? orders.filter((o) => o.status === statusFilter) : orders;
 
   if (!shop && !fetchError) {
     return (

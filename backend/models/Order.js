@@ -2,8 +2,8 @@ import mongoose from "mongoose";
 
 const fileSchema = new mongoose.Schema(
   {
-    url: { type: String, required: true },
-    publicId: { type: String, required: true }, // Cloudinary asset id, for later deletion
+    url: { type: String, default: "" },
+    publicId: { type: String, default: "" }, // Cloudinary asset id, for later deletion
     originalName: { type: String, required: true },
     format: { type: String },
     pages: { type: Number, default: 1 },
@@ -40,7 +40,6 @@ const orderSchema = new mongoose.Schema(
 );
 
 orderSchema.index({ shop: 1, status: 1, createdAt: -1 });
-orderSchema.index({ orderCode: 1 });
 orderSchema.index({ createdAt: -1 });
 
 export default mongoose.model("Order", orderSchema);

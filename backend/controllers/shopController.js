@@ -78,21 +78,24 @@ export async function createShop(req, res, next) {
     const shopId = new mongoose.Types.ObjectId();
     const userId = new mongoose.Types.ObjectId();
 
-    const existingSlug = await Shop.findOne({ slug });
+    const cleanSlug = slug.toLowerCase();
+    const cleanEmail = email.toLowerCase();
+
+    const existingSlug = await Shop.findOne({ slug: cleanSlug });
     if (existingSlug) throw new ApiError(409, "That shop URL is already taken");
 
-    const existingEmail = await User.findOne({ email });
+    const existingEmail = await User.findOne({ email: cleanEmail });
     if (existingEmail) throw new ApiError(409, "That email is already registered");
 
     let shop, owner;
     try {
       session.startTransaction();
       [shop] = await Shop.create(
-        [{ _id: shopId, name, slug: slug.toLowerCase(), email, phone, address, owner: userId }],
+        [{ _id: shopId, name, slug: cleanSlug, email: cleanEmail, phone, address, owner: userId }],
         { session }
       );
       [owner] = await User.create(
-        [{ _id: userId, name, email, password, role: "shop", shop: shopId }],
+        [{ _id: userId, name, email: cleanEmail, password, role: "shop", shop: shopId }],
         { session }
       );
       await session.commitTransaction();
@@ -110,8 +113,8 @@ export async function createShop(req, res, next) {
         shop = await Shop.create({
           _id: shopId,
           name,
-          slug: slug.toLowerCase(),
-          email,
+          slug: cleanSlug,
+          email: cleanEmail,
           phone,
           address,
           owner: userId,
@@ -119,7 +122,7 @@ export async function createShop(req, res, next) {
         owner = await User.create({
           _id: userId,
           name,
-          email,
+          email: cleanEmail,
           password,
           role: "shop",
           shop: shopId,

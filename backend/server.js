@@ -7,7 +7,6 @@ import morgan from "morgan";
 import compression from "compression";
 import rateLimit from "express-rate-limit";
 import mongoSanitize from "express-mongo-sanitize";
-import xss from "xss";
 import { Server as SocketServer } from "socket.io";
 
 import { connectDB } from "./config/db.js";

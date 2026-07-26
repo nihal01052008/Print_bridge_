@@ -29,6 +29,15 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     initAuth();
+
+    const handleUnauthorized = () => {
+      setUser(null);
+    };
+
+    window.addEventListener("pb:unauthorized", handleUnauthorized);
+    return () => {
+      window.removeEventListener("pb:unauthorized", handleUnauthorized);
+    };
   }, [initAuth]);
 
   const login = useCallback(async (email, password) => {

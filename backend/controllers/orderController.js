@@ -85,15 +85,18 @@ export async function getOrderByCode(req, res, next) {
 /** Shop — search their own orders by code, customer name, or phone. */
 export async function searchShopOrders(req, res, next) {
   try {
-    const { q = "" } = req.query;
-    const orders = await Order.find({
+    const { q = "", status } = req.query;
+    const filter = {
       shop: req.user.shop,
       $or: [
         { orderCode: { $regex: q, $options: "i" } },
         { customerName: { $regex: q, $options: "i" } },
         { customerPhone: { $regex: q, $options: "i" } },
       ],
-    }).sort({ createdAt: -1 });
+    };
+    if (status) filter.status = status;
+
+    const orders = await Order.find(filter).sort({ createdAt: -1 });
 
     res.json({ success: true, orders });
   } catch (err) {

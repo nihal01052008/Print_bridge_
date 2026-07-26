@@ -18,6 +18,9 @@ api.interceptors.response.use(
   (error) => {
     if (error.response && error.response.status === 401) {
       localStorage.removeItem("pb_token");
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("pb:unauthorized"));
+      }
     }
     return Promise.reject(error);
   }
