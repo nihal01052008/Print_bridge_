@@ -1,3 +1,4 @@
+import path from "path";
 import Shop from "../models/Shop.js";
 import Order from "../models/Order.js";
 import { ApiError } from "../middleware/errorHandler.js";
@@ -20,11 +21,12 @@ export async function createOrder(req, res, next) {
     const uploaded = await Promise.all(
       req.files.map(async (file) => {
         const result = await uploadBufferToCloudinary(file.buffer, file.originalname);
+        const ext = path.extname(file.originalname || "").replace(".", "").toLowerCase();
         return {
           url: result.secure_url,
           publicId: result.public_id,
           originalName: file.originalname,
-          format: result.format,
+          format: result.format || ext,
           pages: result.pages || 1,
         };
       })

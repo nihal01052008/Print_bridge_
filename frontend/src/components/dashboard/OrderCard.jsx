@@ -155,7 +155,9 @@ function OrderCard({ order, onUpdateStatus, isNew }) {
             ${
               fileType === "image"
                 ? `<img src="${fileUrl}" onload="triggerPrint()" />`
-                : `<iframe src="${fileUrl}" id="printDoc" onload="triggerPrint()"></iframe>`
+                : fileType === "pdf"
+                ? `<iframe src="${fileUrl}" id="printDoc" onload="triggerPrint()"></iframe>`
+                : `<iframe src="https://docs.google.com/gview?url=${encodeURIComponent(fileUrl)}&embedded=true" id="printDoc" onload="triggerPrint()"></iframe>`
             }
           </div>
           <script>
