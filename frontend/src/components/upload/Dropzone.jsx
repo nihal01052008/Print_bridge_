@@ -19,6 +19,8 @@ const ACCEPTED = {
   "text/plain": [".txt"],
   "text/csv": [".csv"],
   "application/rtf": [".rtf"],
+  "application/octet-stream": [".pdf", ".doc", ".docx", ".ppt", ".pptx", ".xls", ".xlsx"],
+  "application/x-zip-compressed": [".docx", ".pptx", ".xlsx"],
 };
 
 function formatSize(bytes) {
