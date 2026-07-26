@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FileText, Phone, Loader2, ChevronDown, Download, Printer, Eye, X, ExternalLink } from "lucide-react";
 import GlassCard from "../ui/GlassCard.jsx";
@@ -45,7 +45,7 @@ function getFileType(file) {
   return "other";
 }
 
-export default function OrderCard({ order, onUpdateStatus, isNew }) {
+function OrderCard({ order, onUpdateStatus, isNew }) {
   const [updating, setUpdating] = useState(false);
   const [previewFile, setPreviewFile] = useState(null);
   const nextStatus = NEXT_STATUS[order.status];
@@ -314,3 +314,5 @@ export default function OrderCard({ order, onUpdateStatus, isNew }) {
     </motion.div>
   );
 }
+
+export default memo(OrderCard);

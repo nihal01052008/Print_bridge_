@@ -173,7 +173,6 @@ export default function QRScannerModal({ open, onClose, onScanSuccess }) {
       } catch (e) {}
     } catch (err) {
       console.error("Camera failed to start with primary config:", err);
-      // Fallback attempt: If targeted camera ID failed, try simple environment or user facing mode
       try {
         if (scannerRef.current) {
           scannerRef.current = new Html5Qrcode("qr-reader");
