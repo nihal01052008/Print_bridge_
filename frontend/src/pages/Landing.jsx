@@ -15,40 +15,28 @@ export default function Landing() {
   const navigate = useNavigate();
 
   function handleScanSuccess(decodedText) {
+    if (!decodedText) return;
+    let text = String(decodedText).trim();
     try {
-      const url = new URL(decodedText);
-      const pathParts = url.pathname.split("/upload/");
-      if (pathParts.length > 1) {
-        let slug = pathParts[1];
-        // Clean trailing slash
-        if (slug.endsWith("/")) {
-          slug = slug.slice(0, -1);
-        }
-        // Extract only the first segment if there are multiple sub-paths
-        if (slug.includes("/")) {
-          slug = slug.split("/")[0];
-        }
-        // Remove any query params or hash
-        if (slug.includes("?")) {
-          slug = slug.split("?")[0];
-        }
-        if (slug.includes("#")) {
-          slug = slug.split("#")[0];
-        }
-        navigate(`/upload/${slug}`);
-      } else {
-        alert("Invalid QR Code. Please scan a PrintBridge shop counter QR code.");
+      if (text.startsWith("http://") || text.startsWith("https://")) {
+        const parsedUrl = new URL(text);
+        text = parsedUrl.pathname + parsedUrl.search + parsedUrl.hash;
       }
-    } catch (e) {
-      let cleanedText = decodedText ? decodedText.trim() : "";
-      if (cleanedText.endsWith("/")) {
-        cleanedText = cleanedText.slice(0, -1);
-      }
-      if (cleanedText && !cleanedText.includes("/")) {
-        navigate(`/upload/${cleanedText}`);
-      } else {
-        alert("Invalid QR Code content.");
-      }
+    } catch (e) {}
+
+    if (text.includes("/upload/")) {
+      text = text.split("/upload/")[1];
+    }
+    text = text.replace(/\/+$/, "");
+    if (text.includes("/")) text = text.split("/")[0];
+    if (text.includes("?")) text = text.split("?")[0];
+    if (text.includes("#")) text = text.split("#")[0];
+
+    const slug = decodeURIComponent(text).trim().toLowerCase();
+    if (slug) {
+      navigate(`/upload/${slug}`);
+    } else {
+      alert("Invalid QR Code content.");
     }
   }
 
