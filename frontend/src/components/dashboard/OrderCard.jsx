@@ -25,7 +25,9 @@ function timeAgo(dateStr) {
   return new Date(dateStr).toLocaleDateString();
 }
 
-export default function OrderCard({ order, onUpdateStatus, isNew }) {
+import { memo } from "react";
+
+function OrderCard({ order, onUpdateStatus, isNew }) {
   const [updating, setUpdating] = useState(false);
   const [previewFile, setPreviewFile] = useState(null);
   const nextStatus = NEXT_STATUS[order.status];
@@ -262,3 +264,5 @@ export default function OrderCard({ order, onUpdateStatus, isNew }) {
     </motion.div>
   );
 }
+
+export default memo(OrderCard);

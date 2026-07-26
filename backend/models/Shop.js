@@ -22,4 +22,7 @@ const shopSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+shopSchema.index({ isActive: 1, isAcceptingOrders: 1 });
+shopSchema.index({ name: "text" });
+
 export default mongoose.model("Shop", shopSchema);

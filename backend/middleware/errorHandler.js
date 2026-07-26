@@ -3,13 +3,28 @@ export function notFound(req, res, next) {
 }
 
 export function errorHandler(err, req, res, next) {
-  const status = err.statusCode || 500;
+  let status = err.statusCode || 500;
+  let message = err.message || "Internal server error";
+
+  if (err.name === "ValidationError") {
+    status = 400;
+    const errors = Object.values(err.errors).map(el => el.message);
+    message = `Invalid input data: ${errors.join(", ")}`;
+  }
+
+  if (err.code === 11000) {
+    status = 409;
+    const field = Object.keys(err.keyValue)[0];
+    message = `Duplicate field value entered for ${field}. Please use another value.`;
+  }
+
   if (process.env.NODE_ENV !== "production") {
     console.error(err);
   }
+
   res.status(status).json({
     success: false,
-    message: err.message || "Internal server error",
+    message,
   });
 }
 

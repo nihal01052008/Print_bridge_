@@ -69,10 +69,41 @@ export default function QRScannerModal({ open, onClose, onScanSuccess }) {
         }
       };
 
-      // Prefer back camera (environment) primarily, unless the user manually switched
+      let camerasList = [];
+      try {
+        camerasList = await Html5Qrcode.getCameras();
+        if (isMountedRef.current) {
+          setCameras(camerasList);
+        }
+      } catch (e) {
+        console.warn("Failed to get cameras list", e);
+      }
+
+      // Determine camera to use
       let cameraIdOrConfig = { facingMode: "environment" };
       if (selectedCameraIdRef.current) {
-        cameraIdOrConfig = selectedCameraIdRef.current;
+        cameraIdOrConfig = selectedCameraIdRef.current; // string deviceId
+      } else if (camerasList && camerasList.length > 0) {
+        // Try to find a back camera
+        let backCamera = camerasList.find(cam =>
+          cam.label.toLowerCase().includes("back") ||
+          cam.label.toLowerCase().includes("environment") ||
+          cam.label.toLowerCase().includes("rear")
+        );
+        if (backCamera) {
+          cameraIdOrConfig = backCamera.id;
+          selectedCameraIdRef.current = backCamera.id;
+        } else {
+          // fallback to first camera
+          cameraIdOrConfig = camerasList[0].id;
+          selectedCameraIdRef.current = camerasList[0].id;
+        }
+
+        // update index
+        const idx = camerasList.findIndex(c => c.id === selectedCameraIdRef.current);
+        if (idx >= 0 && isMountedRef.current) {
+          setActiveCameraIndex(idx);
+        }
       }
 
       const startPromise = html5QrCode.start(
@@ -108,29 +139,6 @@ export default function QRScannerModal({ open, onClose, onScanSuccess }) {
 
       if (isMountedRef.current) {
         setScanning(true);
-      }
-
-      // Fetch cameras list to allow toggling/switching
-      try {
-        const camerasList = await Html5Qrcode.getCameras();
-        if (isMountedRef.current) {
-          setCameras(camerasList);
-          
-          // Identify which camera is active and update selection
-          try {
-            const trackSettings = html5QrCode.getRunningTrackSettings();
-            const activeCam = camerasList.find(cam => cam.id === trackSettings.deviceId);
-            if (activeCam) {
-              const idx = camerasList.indexOf(activeCam);
-              setActiveCameraIndex(idx);
-              selectedCameraIdRef.current = activeCam.id;
-            }
-          } catch (e) {
-            // track settings might not be fully populated immediately, fallback
-          }
-        }
-      } catch (e) {
-        console.warn("Failed to get cameras list", e);
       }
     } catch (err) {
       console.error("Camera failed to start:", err);
