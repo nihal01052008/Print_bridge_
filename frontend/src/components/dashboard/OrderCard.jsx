@@ -81,11 +81,17 @@ function OrderCard({ order, onUpdateStatus, isNew }) {
               size: ${paperSizeCss};
               margin: 8mm;
             }
+            * {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              color-adjust: exact !important;
+            }
             @media print {
-              body {
+              html, body, img, iframe, embed {
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
-                ${isBW ? "filter: grayscale(100%) !important; -webkit-filter: grayscale(100%) !important;" : ""}
+                color-adjust: exact !important;
+                ${isBW ? "filter: grayscale(100%) !important; -webkit-filter: grayscale(100%) !important;" : "filter: none !important; -webkit-filter: none !important;"}
               }
               .no-print {
                 display: none !important;
@@ -96,7 +102,7 @@ function OrderCard({ order, onUpdateStatus, isNew }) {
               padding: 12px;
               font-family: system-ui, -apple-system, sans-serif;
               color: #111;
-              ${isBW ? "filter: grayscale(100%); -webkit-filter: grayscale(100%);" : ""}
+              ${isBW ? "filter: grayscale(100%); -webkit-filter: grayscale(100%);" : "filter: none; -webkit-filter: none;"}
             }
             .ticket-header {
               background: #f8fafc;
