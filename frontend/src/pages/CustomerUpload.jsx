@@ -44,10 +44,8 @@ export default function CustomerUpload() {
       return;
     }
 
-    let cleanSlug = shopSlug.trim();
-    if (cleanSlug.endsWith("/")) {
-      cleanSlug = cleanSlug.slice(0, -1);
-    }
+    let cleanSlug = decodeURIComponent(shopSlug || "").trim().toLowerCase();
+    cleanSlug = cleanSlug.replace(/\/+$/, "");
     if (cleanSlug.includes("/")) {
       cleanSlug = cleanSlug.split("/")[0];
     }
@@ -60,7 +58,7 @@ export default function CustomerUpload() {
 
     setShopError(null);
     api
-      .get(`/shops/${cleanSlug}`)
+      .get(`/shops/${encodeURIComponent(cleanSlug)}`)
       .then((res) => {
         const s = res.data.shop;
         if (!s.isActive || !s.isAcceptingOrders) {

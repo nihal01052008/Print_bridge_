@@ -63,37 +63,122 @@ function OrderCard({ order, onUpdateStatus, isNew }) {
   const handlePrint = (file) => {
     const fileUrl = file.url;
     const fileType = getFileType(file);
+    const { copies = 1, colorMode = "bw", paperSize = "A4", sides = "single" } = order.printSettings || {};
+    const isBW = colorMode === "bw";
 
-    if (fileType === "image") {
-      const printWindow = window.open("", "_blank");
-      if (printWindow) {
-        printWindow.document.write(`
-          <!DOCTYPE html>
-          <html>
-            <head><title>Print ${file.originalName}</title></head>
-            <body style="margin:0; display:flex; justify-content:center; align-items:center; min-height:100vh;">
-              <img src="${fileUrl}" style="max-width:100%; max-height:100vh; object-contain;" onload="window.print(); window.close();" />
-            </body>
-          </html>
-        `);
-        printWindow.document.close();
-      }
-      return;
-    }
+    const printWindow = window.open("", "_blank", "width=900,height=850");
+    if (!printWindow) return;
 
-    const printWindow = window.open(fileUrl, "_blank");
-    if (printWindow) {
-      printWindow.addEventListener("load", () => {
-        try {
-          printWindow.print();
-        } catch (e) {}
-      });
-      setTimeout(() => {
-        try {
-          printWindow.print();
-        } catch (e) {}
-      }, 1200);
-    }
+    const paperSizeCss = paperSize || "A4";
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Print Order ${order.orderCode} - ${file.originalName}</title>
+          <style>
+            @page {
+              size: ${paperSizeCss};
+              margin: 8mm;
+            }
+            @media print {
+              body {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                ${isBW ? "filter: grayscale(100%) !important; -webkit-filter: grayscale(100%) !important;" : ""}
+              }
+              .no-print {
+                display: none !important;
+              }
+            }
+            body {
+              margin: 0;
+              padding: 12px;
+              font-family: system-ui, -apple-system, sans-serif;
+              color: #111;
+              ${isBW ? "filter: grayscale(100%); -webkit-filter: grayscale(100%);" : ""}
+            }
+            .ticket-header {
+              background: #f8fafc;
+              border: 1.5px solid #e2e8f0;
+              border-radius: 12px;
+              padding: 12px 18px;
+              margin-bottom: 16px;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              font-size: 13px;
+              line-height: 1.4;
+            }
+            .ticket-badge {
+              display: inline-block;
+              padding: 4px 10px;
+              border-radius: 6px;
+              font-weight: 700;
+              background: #000;
+              color: #fff;
+              font-size: 12px;
+            }
+            .preview-container {
+              width: 100%;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+            }
+            img {
+              max-width: 100%;
+              max-height: 85vh;
+              object-fit: contain;
+            }
+            iframe, embed {
+              width: 100%;
+              height: 85vh;
+              border: none;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="ticket-header no-print">
+            <div>
+              <span class="ticket-badge">PRINT JOB</span>
+              <span style="margin-left: 10px; font-weight: 600;">Code: ${order.orderCode}</span>
+              <span style="color: #64748b;"> | Customer: ${order.customerName || "Anonymous"}</span>
+            </div>
+            <div style="font-size: 12px; color: #334155;">
+              <strong>Copies:</strong> ${copies} |
+              <strong>Color:</strong> ${isBW ? "Black & White" : "Color"} |
+              <strong>Paper:</strong> ${paperSize} |
+              <strong>Sides:</strong> ${sides === "double" ? "Double-sided" : "Single-sided"}
+            </div>
+          </div>
+          <div class="preview-container">
+            ${
+              fileType === "image"
+                ? `<img src="${fileUrl}" onload="triggerPrint()" />`
+                : `<iframe src="${fileUrl}" id="printDoc" onload="triggerPrint()"></iframe>`
+            }
+          </div>
+          <script>
+            let hasPrinted = false;
+            function triggerPrint() {
+              if (hasPrinted) return;
+              hasPrinted = true;
+              setTimeout(function() {
+                window.focus();
+                window.print();
+              }, 500);
+            }
+            window.onload = function() {
+              setTimeout(triggerPrint, 1000);
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
   };
 
   const handleFileAction = async (actionType, file) => {

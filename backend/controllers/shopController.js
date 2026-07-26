@@ -7,7 +7,8 @@ import { ApiError } from "../middleware/errorHandler.js";
 /** Public — used by the customer upload page to confirm a shop exists & is open. */
 export async function getShopBySlug(req, res, next) {
   try {
-    const shop = await Shop.findOne({ slug: req.params.slug.toLowerCase() }).select(
+    const rawSlug = decodeURIComponent(req.params.slug || "").trim().toLowerCase();
+    const shop = await Shop.findOne({ slug: rawSlug }).select(
       "name slug isActive isAcceptingOrders pricing"
     );
     if (!shop) throw new ApiError(404, "Shop not found");

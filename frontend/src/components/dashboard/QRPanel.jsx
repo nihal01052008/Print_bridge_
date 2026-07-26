@@ -9,7 +9,8 @@ export default function QRPanel({ shop }) {
   const [copied, setCopied] = useState(false);
   const qrWrapRef = useRef(null);
 
-  const uploadUrl = `${window.location.origin}/upload/${shop.slug}`;
+  const baseUrl = import.meta.env.VITE_CLIENT_URL || window.location.origin;
+  const uploadUrl = `${baseUrl.replace(/\/+$/, "")}/upload/${encodeURIComponent((shop.slug || "").trim().toLowerCase())}`;
 
   function copyLink() {
     navigator.clipboard.writeText(uploadUrl);
