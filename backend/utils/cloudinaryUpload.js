@@ -16,15 +16,15 @@ export function uploadBufferToCloudinary(buffer, filename) {
       unique_filename: true,
     };
 
-    if (!isImage && ext) {
+    if (!isImage) {
       const nameWithoutExt = path.parse(filename || "file").name.replace(/[^a-zA-Z0-9_-]/g, "_");
-      options.public_id = `${nameWithoutExt}_${Date.now()}${ext}`;
+      options.public_id = `${nameWithoutExt}_${Date.now()}`;
     }
 
     const stream = cloudinary.uploader.upload_stream(options, (error, result) => {
       if (error) return reject(error);
 
-      if (result && result.secure_url && ext && !result.secure_url.toLowerCase().endsWith(ext)) {
+      if (isImage && result && result.secure_url && ext && !result.secure_url.toLowerCase().endsWith(ext)) {
         result.secure_url = `${result.secure_url}${ext}`;
       }
       resolve(result);
