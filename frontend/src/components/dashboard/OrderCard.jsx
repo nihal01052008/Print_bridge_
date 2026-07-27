@@ -1,6 +1,6 @@
-import { useState, memo } from "react";
+import { useState, useRef, useEffect, useCallback, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { FileText, Phone, Loader2, ChevronDown, Download, Printer, Eye, X, ExternalLink } from "lucide-react";
+import { FileText, Phone, Loader2, ChevronDown, Download, Printer, Eye, X, ExternalLink, AlertCircle } from "lucide-react";
 import GlassCard from "../ui/GlassCard.jsx";
 import StatusBadge from "./StatusBadge.jsx";
 
@@ -48,7 +48,69 @@ function getFileType(file) {
 function OrderCard({ order, onUpdateStatus, isNew }) {
   const [updating, setUpdating] = useState(false);
   const [previewFile, setPreviewFile] = useState(null);
+  const [previewBlobUrl, setPreviewBlobUrl] = useState(null);
+  const [loadingActionFile, setLoadingActionFile] = useState(null);
+  const [actionError, setActionError] = useState(null);
+
+  // In-memory cache for PDF Blob URLs and active fetch promises
+  const blobCacheRef = useRef(new Map()); // Map<secure_url, blob_url>
+  const inFlightRef = useRef(new Map());  // Map<secure_url, Promise<blob_url>>
+
   const nextStatus = NEXT_STATUS[order.status];
+
+  // Helper to revoke all cached Blob URLs and clear cache
+  const clearBlobCache = useCallback(() => {
+    blobCacheRef.current.forEach((blobUrl) => {
+      try {
+        URL.revokeObjectURL(blobUrl);
+      } catch (e) {}
+    });
+    blobCacheRef.current.clear();
+    inFlightRef.current.clear();
+  }, []);
+
+  // Revoke Blob URLs when component unmounts
+  useEffect(() => {
+    return () => {
+      clearBlobCache();
+    };
+  }, [clearBlobCache]);
+
+  // Fetches a PDF as a Blob URL, caching the result and deduplicating in-flight requests
+  const getPdfBlobUrl = useCallback(async (url) => {
+    if (blobCacheRef.current.has(url)) {
+      return blobCacheRef.current.get(url);
+    }
+    if (inFlightRef.current.has(url)) {
+      return inFlightRef.current.get(url);
+    }
+
+    const fetchPromise = (async () => {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status} ${res.statusText}`);
+        }
+        const blob = await res.blob();
+        const pdfBlob = new Blob([blob], { type: "application/pdf" });
+        const blobUrl = URL.createObjectURL(pdfBlob);
+        blobCacheRef.current.set(url, blobUrl);
+        return blobUrl;
+      } finally {
+        inFlightRef.current.delete(url);
+      }
+    })();
+
+    inFlightRef.current.set(url, fetchPromise);
+    return fetchPromise;
+  }, []);
+
+  const handleClosePreview = useCallback(() => {
+    clearBlobCache();
+    setPreviewFile(null);
+    setPreviewBlobUrl(null);
+    setActionError(null);
+  }, [clearBlobCache]);
 
   async function advance() {
     if (!nextStatus) return;
@@ -60,16 +122,34 @@ function OrderCard({ order, onUpdateStatus, isNew }) {
     }
   }
 
-  const handlePrint = (file) => {
-    const fileUrl = file.url;
+  const handlePrint = async (file) => {
     const fileType = getFileType(file);
     const { copies = 1, colorMode = "bw", paperSize = "A4", sides = "single" } = order.printSettings || {};
     const isBW = colorMode === "bw";
+    const paperSizeCss = paperSize || "A4";
+
+    let printableUrl = file.url;
+
+    if (fileType === "pdf") {
+      setLoadingActionFile(file.url);
+      setActionError(null);
+      try {
+        printableUrl = await getPdfBlobUrl(file.url);
+      } catch (err) {
+        console.error("Failed to load PDF for printing:", err);
+        setActionError(`Could not print "${file.originalName}": ${err.message}`);
+        setLoadingActionFile(null);
+        return;
+      } finally {
+        setLoadingActionFile(null);
+      }
+    }
 
     const printWindow = window.open("", "_blank", "width=900,height=850");
-    if (!printWindow) return;
-
-    const paperSizeCss = paperSize || "A4";
+    if (!printWindow) {
+      setActionError("Pop-up window blocked. Please allow pop-ups to print.");
+      return;
+    }
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -82,33 +162,27 @@ function OrderCard({ order, onUpdateStatus, isNew }) {
               margin: 8mm;
             }
             html, body {
+              margin: 0;
+              padding: 12px;
+              font-family: system-ui, -apple-system, sans-serif;
+              color: #111;
               color-scheme: light !important;
               -webkit-print-color-adjust: exact !important;
               print-color-adjust: exact !important;
-              color-adjust: exact !important;
             }
             * {
               -webkit-print-color-adjust: exact !important;
               print-color-adjust: exact !important;
-              color-adjust: exact !important;
             }
             @media print {
               html, body, img, iframe, embed {
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
-                color-adjust: exact !important;
-                ${isBW ? "filter: grayscale(100%) !important; -webkit-filter: grayscale(100%) !important;" : "filter: none !important; -webkit-filter: none !important;"}
+                ${isBW ? "filter: grayscale(100%) !important; -webkit-filter: grayscale(100%) !important;" : ""}
               }
               .no-print {
                 display: none !important;
               }
-            }
-            body {
-              margin: 0;
-              padding: 12px;
-              font-family: system-ui, -apple-system, sans-serif;
-              color: #111;
-              ${isBW ? "filter: grayscale(100%); -webkit-filter: grayscale(100%);" : "filter: none; -webkit-filter: none;"}
             }
             .ticket-header {
               background: #f8fafc;
@@ -120,7 +194,6 @@ function OrderCard({ order, onUpdateStatus, isNew }) {
               justify-content: space-between;
               align-items: center;
               font-size: 13px;
-              line-height: 1.4;
             }
             .ticket-badge {
               display: inline-block;
@@ -141,9 +214,6 @@ function OrderCard({ order, onUpdateStatus, isNew }) {
               max-width: 100%;
               max-height: 85vh;
               object-fit: contain;
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-              ${isBW ? "filter: grayscale(100%) !important; -webkit-filter: grayscale(100%) !important;" : "filter: none !important; -webkit-filter: none !important;"}
             }
             iframe, embed {
               width: 100%;
@@ -169,34 +239,37 @@ function OrderCard({ order, onUpdateStatus, isNew }) {
           <div class="preview-container">
             ${
               fileType === "image"
-                ? `<img src="${fileUrl}" onload="triggerPrint()" />`
+                ? `<img src="${printableUrl}" id="printTarget" />`
                 : fileType === "pdf"
-                ? `<iframe src="${fileUrl}" id="printDoc" onload="triggerPrint()"></iframe>`
-                : `<iframe src="https://docs.google.com/gview?url=${encodeURIComponent(fileUrl)}&embedded=true" id="printDoc" onload="triggerPrint()"></iframe>`
+                ? `<iframe src="${printableUrl}" id="printTarget"></iframe>`
+                : `<iframe src="https://docs.google.com/gview?url=${encodeURIComponent(file.url)}&embedded=true" id="printTarget"></iframe>`
             }
           </div>
           <script>
             let hasPrinted = false;
-            function triggerPrint() {
+            function doPrint() {
               if (hasPrinted) return;
               hasPrinted = true;
               setTimeout(function() {
                 try {
-                  const printDoc = document.getElementById("printDoc");
-                  if (printDoc && printDoc.contentWindow) {
-                    printDoc.contentWindow.focus();
-                    printDoc.contentWindow.print();
+                  const el = document.getElementById("printTarget");
+                  if (el && el.tagName === "IFRAME" && el.contentWindow) {
+                    el.contentWindow.focus();
+                    el.contentWindow.print();
                     return;
                   }
-                } catch (e) {
-                  // Fallback to top window print if iframe print cannot be directly accessed
-                }
+                } catch (e) {}
                 window.focus();
                 window.print();
-              }, 600);
+              }, 300);
+            }
+
+            const el = document.getElementById("printTarget");
+            if (el) {
+              el.onload = doPrint;
             }
             window.onload = function() {
-              setTimeout(triggerPrint, 1000);
+              setTimeout(doPrint, 1000);
             };
           </script>
         </body>
@@ -209,6 +282,8 @@ function OrderCard({ order, onUpdateStatus, isNew }) {
   };
 
   const handleFileAction = async (actionType, file) => {
+    setActionError(null);
+
     if (order.status === "pending" && (actionType === "preview" || actionType === "download")) {
       try {
         await onUpdateStatus(order._id, "preview");
@@ -218,9 +293,25 @@ function OrderCard({ order, onUpdateStatus, isNew }) {
     }
 
     if (actionType === "preview") {
-      setPreviewFile(file);
+      const fileType = getFileType(file);
+      if (fileType === "pdf") {
+        setLoadingActionFile(file.url);
+        try {
+          const blobUrl = await getPdfBlobUrl(file.url);
+          setPreviewBlobUrl(blobUrl);
+          setPreviewFile(file);
+        } catch (err) {
+          console.error("Failed to load PDF preview:", err);
+          setActionError(`Unable to preview "${file.originalName}": ${err.message}`);
+        } finally {
+          setLoadingActionFile(null);
+        }
+      } else {
+        setPreviewFile(file);
+        setPreviewBlobUrl(null);
+      }
     } else if (actionType === "print") {
-      handlePrint(file);
+      await handlePrint(file);
       try {
         await onUpdateStatus(order._id, "ready");
       } catch (err) {
@@ -279,6 +370,22 @@ function OrderCard({ order, onUpdateStatus, isNew }) {
           </div>
         </div>
 
+        {/* Action Error Banner */}
+        {actionError && (
+          <div className="flex items-center justify-between text-xs text-rose-600 bg-rose-50 border border-rose-200 px-3 py-2 rounded-xl mt-1 w-full">
+            <div className="flex items-center gap-2 min-w-0">
+              <AlertCircle size={14} className="shrink-0" />
+              <span className="truncate">{actionError}</span>
+            </div>
+            <button
+              onClick={() => setActionError(null)}
+              className="text-rose-400 hover:text-rose-700 ml-2 shrink-0"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
         {/* Notes Section */}
         {order.notes && (
           <div className="text-xs text-stamp bg-stamp/5 border border-stamp/10 px-3 py-2 rounded-xl mt-1 w-full">
@@ -290,43 +397,48 @@ function OrderCard({ order, onUpdateStatus, isNew }) {
         <div className="mt-2 border-t border-ink/5 pt-3">
           <p className="text-xs font-semibold text-ink-soft mb-2">Print Files:</p>
           <ul className="space-y-2">
-            {order.files.map((file, idx) => (
-              <li key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-paper-dim/40 p-2.5 rounded-xl hover:bg-paper-dim/75 transition-colors">
-                <div className="flex items-center gap-2 min-w-0">
-                  <FileText size={15} className="text-ink-soft shrink-0" />
-                  <span className="text-xs font-medium text-ink-soft truncate" title={file.originalName}>
-                    {file.originalName}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-                  <button
-                    onClick={() => handleFileAction("preview", file)}
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-ink-soft hover:bg-white/80 transition-colors"
-                  >
-                    <Eye size={12} />
-                    Preview
-                  </button>
-                  <a
-                    href={file.url}
-                    download={file.originalName}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={() => handleFileAction("download", file)}
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-ink-soft hover:bg-white/80 transition-colors"
-                  >
-                    <Download size={12} />
-                    Download
-                  </a>
-                  <button
-                    onClick={() => handleFileAction("print", file)}
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-accent text-white hover:bg-accent-soft transition-colors"
-                  >
-                    <Printer size={12} />
-                    Print
-                  </button>
-                </div>
-              </li>
-            ))}
+            {order.files.map((file, idx) => {
+              const isLoadingThisFile = loadingActionFile === file.url;
+              return (
+                <li key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-paper-dim/40 p-2.5 rounded-xl hover:bg-paper-dim/75 transition-colors">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <FileText size={15} className="text-ink-soft shrink-0" />
+                    <span className="text-xs font-medium text-ink-soft truncate" title={file.originalName}>
+                      {file.originalName}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                    <button
+                      onClick={() => handleFileAction("preview", file)}
+                      disabled={isLoadingThisFile}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-ink-soft hover:bg-white/80 transition-colors disabled:opacity-50"
+                    >
+                      {isLoadingThisFile ? <Loader2 size={12} className="animate-spin" /> : <Eye size={12} />}
+                      Preview
+                    </button>
+                    <a
+                      href={file.url}
+                      download={file.originalName}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={() => handleFileAction("download", file)}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-ink-soft hover:bg-white/80 transition-colors"
+                    >
+                      <Download size={12} />
+                      Download
+                    </a>
+                    <button
+                      onClick={() => handleFileAction("print", file)}
+                      disabled={isLoadingThisFile}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-accent text-white hover:bg-accent-soft transition-colors disabled:opacity-50"
+                    >
+                      {isLoadingThisFile ? <Loader2 size={12} className="animate-spin" /> : <Printer size={12} />}
+                      Print
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </div>
       </GlassCard>
@@ -339,7 +451,7 @@ function OrderCard({ order, onUpdateStatus, isNew }) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 bg-ink/40 backdrop-blur-md grid place-items-center p-6"
-            onClick={() => setPreviewFile(null)}
+            onClick={handleClosePreview}
           >
             <motion.div
               initial={{ opacity: 0, y: 16, scale: 0.98 }}
@@ -356,7 +468,7 @@ function OrderCard({ order, onUpdateStatus, isNew }) {
                   </h3>
                   <button
                     type="button"
-                    onClick={() => setPreviewFile(null)}
+                    onClick={handleClosePreview}
                     className="absolute top-6 right-6 text-ink-faint hover:text-ink transition-colors"
                   >
                     <X size={20} />
@@ -372,7 +484,7 @@ function OrderCard({ order, onUpdateStatus, isNew }) {
                     />
                   ) : getFileType(previewFile) === "pdf" ? (
                     <iframe
-                      src={previewFile.url}
+                      src={previewBlobUrl || previewFile.url}
                       title={previewFile.originalName}
                       className="w-full h-[60vh] rounded-lg border border-ink/10 bg-white"
                     />
