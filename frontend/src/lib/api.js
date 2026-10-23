@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "" : "https://print-bridge-cfoo.onrender.com");
+const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "" : "https://printbridge-backend-5g7z.onrender.com");
 
 const api = axios.create({
   baseURL: `${API_BASE_URL}/api`,
